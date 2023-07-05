@@ -2,6 +2,7 @@ use std::{fs::File, io::Read, path::PathBuf};
 
 use ahash::HashMap;
 use image::DynamicImage;
+use ndshape::{RuntimeShape, Shape};
 use ron::{
     de::from_reader,
     ser::{to_string_pretty, PrettyConfig},
@@ -15,7 +16,35 @@ use vinox_voxel::prelude::{
     CHUNK_SIZE,
 };
 
-#[derive(Serialize, Deserialize)]
+fn linearize(level_size: impl Into<mint::Vector3<u32>>, pos: glam::UVec3) -> usize {
+    let level_size = level_size.into();
+    let shape = RuntimeShape::<u32, 3>::new([level_size.x, level_size.y, level_size.z]);
+    shape.linearize([pos.x, pos.y, pos.z]) as usize
+}
+
+fn to_relative(pos: glam::UVec3) -> glam::UVec3 {
+    glam::UVec3::new(
+        pos.x.rem_euclid(CHUNK_SIZE as u32),
+        pos.y.rem_euclid(CHUNK_SIZE as u32),
+        pos.z.rem_euclid(CHUNK_SIZE as u32),
+    )
+}
+
+fn to_chunk(pos: glam::UVec3) -> glam::UVec3 {
+    glam::UVec3::new(
+        (pos.x as f32 / (CHUNK_SIZE as f32)).floor() as u32,
+        (pos.y as f32 / (CHUNK_SIZE as f32)).floor() as u32,
+        (pos.z as f32 / (CHUNK_SIZE as f32)).floor() as u32,
+    )
+}
+
+// fn delinearize(level_size: impl Into<mint::Vector3<u32>>, idx: usize) -> glam::UVec3 {
+//     let level_size = level_size.into();
+//     let shape = RuntimeShape::<u32, 3>::new([level_size.x, level_size.y, level_size.z]);
+//     shape.delinearize(idx as u32).into()
+// }
+
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "V: Serialize + DeserializeOwned, R: Serialize + DeserializeOwned")]
 pub struct VoxelLevel<
     V: Voxel<R> + DeserializeOwned = BlockData,
@@ -23,12 +52,12 @@ pub struct VoxelLevel<
 > {
     /// Level size in chunks
     pub level_size: mint::Vector3<u32>,
-    pub stored_chunks: Option<HashMap<mint::Vector3<u32>, RawChunk<V, R>>>,
+    pub stored_chunks: Option<Vec<RawChunk<V, R>>>,
     pub asset_registry: AssetRegistry,
     pub texture_atlas: Option<Vec<u8>>,
 
     #[serde(skip)]
-    pub loaded_chunks: Option<HashMap<mint::Vector3<u32>, ChunkData<V, R>>>,
+    pub loaded_chunks: Option<Vec<ChunkData<V, R>>>,
 }
 
 impl<
@@ -38,12 +67,14 @@ impl<
 {
     pub fn new(level_size: impl Into<mint::Vector3<u32>>) -> Self {
         let level_size = level_size.into();
-        let mut loaded_chunks = HashMap::default();
+        let mut loaded_chunks =
+            Vec::with_capacity((level_size.x * level_size.y * level_size.z) as usize);
         for x in 0..level_size.x {
             for y in 0..level_size.y {
                 for z in 0..level_size.z {
                     let pos = glam::UVec3::new(x, y, z);
-                    loaded_chunks.insert(pos.into(), ChunkData::<V, R>::default());
+                    let idx = linearize(level_size, pos);
+                    loaded_chunks.insert(idx, ChunkData::<V, R>::default());
                 }
             }
         }
@@ -61,24 +92,13 @@ impl<
 
     pub fn set_voxel(&mut self, voxel_pos: impl Into<mint::Vector3<u32>>, voxel: V) {
         let voxel_pos = voxel_pos.into();
-        let chunk_pos = glam::UVec3::new(
-            (voxel_pos.x as f32 / (CHUNK_SIZE as f32)).floor() as u32,
-            (voxel_pos.y as f32 / (CHUNK_SIZE as f32)).floor() as u32,
-            (voxel_pos.z as f32 / (CHUNK_SIZE as f32)).floor() as u32,
-        )
-        .into();
-
-        let relative_pos: mint::Vector3<u32> = glam::UVec3::new(
-            voxel_pos.x.rem_euclid(CHUNK_SIZE as u32) as u32,
-            voxel_pos.y.rem_euclid(CHUNK_SIZE as u32) as u32,
-            voxel_pos.z.rem_euclid(CHUNK_SIZE as u32) as u32,
-        )
-        .into();
+        let chunk_pos = to_chunk(voxel_pos.into());
+        let relative_pos: mint::Vector3<u32> = to_relative(voxel_pos.into()).into();
 
         if let Some(chunk) = self
             .loaded_chunks
             .as_mut()
-            .and_then(|x| x.get_mut(&chunk_pos))
+            .and_then(|x| x.get_mut(linearize(self.level_size, chunk_pos)))
         {
             chunk.set(relative_pos.into(), voxel);
         }
@@ -86,25 +106,13 @@ impl<
 
     pub fn get_voxel(&mut self, voxel_pos: impl Into<mint::Vector3<u32>>) -> Option<V> {
         let voxel_pos = voxel_pos.into();
-        let chunk_pos = glam::UVec3::new(
-            (voxel_pos.x as f32 / (CHUNK_SIZE as f32)).floor() as u32,
-            (voxel_pos.y as f32 / (CHUNK_SIZE as f32)).floor() as u32,
-            (voxel_pos.z as f32 / (CHUNK_SIZE as f32)).floor() as u32,
-        )
-        .into();
+        let chunk_pos = to_chunk(voxel_pos.into());
+        let relative_pos: mint::Vector3<u32> = to_relative(voxel_pos.into()).into();
 
-        let relative_pos: mint::Vector3<u32> = glam::UVec3::new(
-            voxel_pos.x.rem_euclid(CHUNK_SIZE as u32) as u32,
-            voxel_pos.y.rem_euclid(CHUNK_SIZE as u32) as u32,
-            voxel_pos.z.rem_euclid(CHUNK_SIZE as u32) as u32,
-        )
-        .into();
-
-        if let Some(chunk) = self.loaded_chunks.as_ref().and_then(|x| x.get(&chunk_pos)) {
-            Some(chunk.get(relative_pos.into()))
-        } else {
-            None
-        }
+        self.loaded_chunks
+            .as_ref()
+            .and_then(|x| x.get(linearize(self.level_size, chunk_pos)))
+            .map(|chunk| chunk.get(relative_pos.into()))
     }
 
     pub fn build_atlas(&mut self, atlas: DynamicImage) {
@@ -133,12 +141,16 @@ impl<
                     name
                 }
             };
-            let mut rects =
-                if let Some(rects) = self.asset_registry.texture_uvs.get_mut(&final_name) {
-                    rects.clone()
-                } else {
-                    [rect, rect, rect, rect, rect, rect]
-                };
+            let mut rects = if let Some(rects) = self
+                .asset_registry
+                .texture_uvs
+                .get_mut(&final_name)
+                .copied()
+            {
+                rects
+            } else {
+                [rect, rect, rect, rect, rect, rect]
+            };
 
             // If the user named the block_name with anything at the end like _side _front _bottom etc we handle it
             match identifier {
@@ -180,7 +192,10 @@ impl<
         self.texture_atlas = Some(texture_atlas.image.as_bytes().to_vec());
     }
 
-    pub fn save(&self, path: PathBuf, name: String) {
+    pub fn save(&mut self, path: PathBuf, name: String) {
+        if let Some(loaded_chunks) = self.loaded_chunks.clone() {
+            self.stored_chunks = Some(loaded_chunks.iter().map(|x| x.to_raw()).collect());
+        }
         let pretty = PrettyConfig::new()
             .depth_limit(2)
             .separate_tuple_members(true)
@@ -192,8 +207,18 @@ impl<
 
     pub fn load(path: PathBuf, name: String) -> Self {
         let file = File::open(path.join(name)).expect("Couldn't open file");
-        match from_reader(file) {
-            Ok(x) => x,
+        match from_reader::<File, Self>(file) {
+            Ok(mut x) => {
+                x.loaded_chunks = Some(
+                    x.stored_chunks
+                        .clone()
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|x| ChunkData::from_raw(x.clone()))
+                        .collect(),
+                );
+                x
+            }
             Err(e) => {
                 println!("Failed to load level: {}", e);
 
@@ -260,10 +285,10 @@ impl<H: std::hash::Hash + std::cmp::Eq + std::clone::Clone> TextureAtlasBuilder<
         let mut textures = HashMap::default();
         for (hash, frame) in packer.get_frames() {
             let rect = Rect {
-                x: frame.frame.x as u32,
-                y: frame.frame.y as u32,
-                w: frame.frame.w as u32,
-                h: frame.frame.h as u32,
+                x: frame.frame.x,
+                y: frame.frame.y,
+                w: frame.frame.w,
+                h: frame.frame.h,
             };
             textures.insert(hash.clone(), rect);
         }

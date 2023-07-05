@@ -16,4 +16,5 @@ vinox_voxel = { path = "../vinox_voxel" }
 image = "0.24.6"
 glam = { version = "0.24.1", features = ["mint"] }
 texture_packer = "0.25.0"
+ndshape = "0.3.0"
 
