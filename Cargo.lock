@@ -558,6 +558,9 @@ name = "mint"
 version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "nanorand"
@@ -1062,7 +1065,6 @@ dependencies = [
 [[package]]
 name = "vinox_voxel"
 version = "0.1.0"
-source = "git+https://github.com/vixeliz/vinox_voxel#fe361c0d6d651baff3dd94a748546b6791b7b139"
 dependencies = [
  "ahash",
  "bincode",

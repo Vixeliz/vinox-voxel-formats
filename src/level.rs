@@ -1,8 +1,12 @@
-use std::path::PathBuf;
+use std::{fs::File, io::Read, path::PathBuf};
 
 use ahash::HashMap;
 use image::DynamicImage;
-use serde::Serialize;
+use ron::{
+    de::from_reader,
+    ser::{to_string_pretty, PrettyConfig},
+};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use texture_packer::{
     exporter::ImageExporter, texture::Texture, Rect, TexturePacker, TexturePackerConfig,
 };
@@ -11,20 +15,26 @@ use vinox_voxel::prelude::{
     CHUNK_SIZE,
 };
 
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "V: Serialize + DeserializeOwned, R: Serialize + DeserializeOwned")]
 pub struct VoxelLevel<
-    V: Voxel<R> + Clone + Serialize + Eq + Default = BlockData,
-    R: VoxRegistry<V> + Clone + Default = BlockRegistry,
+    V: Voxel<R> + DeserializeOwned = BlockData,
+    R: VoxRegistry<V> + DeserializeOwned = BlockRegistry,
 > {
     /// Level size in chunks
     pub level_size: mint::Vector3<u32>,
-    pub loaded_chunks: Option<HashMap<mint::Vector3<u32>, ChunkData<V, R>>>,
-    pub stored_chunks: Option<HashMap<mint::Vector3<u32>, RawChunk<V, R>>>,
+    pub stored_chunks: Option<RawChunk<V, R>>,
     pub asset_registry: AssetRegistry,
     pub texture_atlas: Option<Vec<u8>>,
+
+    #[serde(skip)]
+    pub loaded_chunks: Option<HashMap<mint::Vector3<u32>, ChunkData<V, R>>>,
 }
 
-impl<V: Voxel<R> + Clone + Serialize + Eq + Default, R: VoxRegistry<V> + Clone + Default>
-    VoxelLevel<V, R>
+impl<
+        V: Voxel<R> + Clone + Serialize + DeserializeOwned + Eq + Default,
+        R: VoxRegistry<V> + Clone + Default + Serialize + DeserializeOwned,
+    > VoxelLevel<V, R>
 {
     pub fn new(level_size: impl Into<mint::Vector3<u32>>) -> Self {
         let level_size = level_size.into();
@@ -168,6 +178,39 @@ impl<V: Voxel<R> + Clone + Serialize + Eq + Default, R: VoxRegistry<V> + Clone +
         self.asset_registry.texture_size =
             glam::Vec2::new(texture_atlas.size.x as f32, texture_atlas.size.y as f32).into();
         self.texture_atlas = Some(texture_atlas.image.as_bytes().to_vec());
+    }
+
+    pub fn save(&self, path: PathBuf, name: String) {
+        let pretty = PrettyConfig::new()
+            .depth_limit(2)
+            .separate_tuple_members(true)
+            .enumerate_arrays(true);
+        let s = to_string_pretty(&self, pretty).expect("Serialization failed");
+        let final_path = path.join(name);
+        std::fs::write(final_path, s).expect("Couldn't write file");
+    }
+
+    pub fn load(path: PathBuf, name: String) -> Self {
+        let file = File::open(path.join(name)).expect("Couldn't open file");
+        match from_reader(file) {
+            Ok(x) => x,
+            Err(e) => {
+                println!("Failed to load level: {}", e);
+
+                std::process::exit(1);
+            }
+        }
+    }
+
+    pub fn load_buf_reader(&self, reader: impl Read) {
+        match from_reader(reader) {
+            Ok(x) => x,
+            Err(e) => {
+                println!("Failed to load level: {}", e);
+
+                std::process::exit(1);
+            }
+        }
     }
 }
 
