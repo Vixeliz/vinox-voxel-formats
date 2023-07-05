@@ -23,7 +23,7 @@ pub struct VoxelLevel<
 > {
     /// Level size in chunks
     pub level_size: mint::Vector3<u32>,
-    pub stored_chunks: Option<RawChunk<V, R>>,
+    pub stored_chunks: Option<HashMap<mint::Vector3<u32>, RawChunk<V, R>>>,
     pub asset_registry: AssetRegistry,
     pub texture_atlas: Option<Vec<u8>>,
 
