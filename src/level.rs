@@ -12,8 +12,8 @@ use texture_packer::{
     exporter::ImageExporter, texture::Texture, Rect, TexturePacker, TexturePackerConfig,
 };
 use vinox_voxel::prelude::{
-    AssetRegistry, BlockData, BlockRegistry, ChunkData, RawChunk, UVRect, VoxRegistry, Voxel,
-    CHUNK_SIZE,
+    AssetRegistry, BlockData, BlockRegistry, ChunkData, GeometryRegistry, RawChunk, UVRect,
+    VoxRegistry, Voxel, CHUNK_SIZE,
 };
 
 fn linearize(level_size: impl Into<mint::Vector3<u32>>, pos: glam::UVec3) -> usize {
@@ -55,6 +55,8 @@ pub struct VoxelLevel<
     pub stored_chunks: Option<Vec<RawChunk<V, R>>>,
     pub asset_registry: AssetRegistry,
     pub texture_atlas: Option<Vec<u8>>,
+    pub geometry_registry: GeometryRegistry,
+    pub block_registry: R,
 
     #[serde(skip)]
     pub loaded_chunks: Option<Vec<ChunkData<V, R>>>,
@@ -87,6 +89,8 @@ impl<
                 texture_size: glam::Vec2::splat(0.0).into(),
             },
             texture_atlas: None,
+            geometry_registry: GeometryRegistry::default(),
+            block_registry: R::default(),
         }
     }
 
