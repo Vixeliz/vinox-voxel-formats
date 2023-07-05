@@ -1,0 +1,6 @@
+Has additional formats for vinox-voxel also includes loaders for the builtin types
+
+Note:
+There is certain assumptions made about block names thusfore blocks should not be named the following:
+anything with a . in it.
+anything with a _direction on the end.
