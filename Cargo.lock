@@ -1066,6 +1066,7 @@ dependencies = [
 [[package]]
 name = "vinox_voxel"
 version = "0.1.0"
+source = "git+https://github.com/vixeliz/vinox_voxel#e17e1091acb2021a1038cd318cf64f90f93fbc0a"
 dependencies = [
  "ahash",
  "bincode",
