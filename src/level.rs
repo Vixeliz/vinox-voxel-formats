@@ -38,12 +38,6 @@ fn to_chunk(pos: glam::UVec3) -> glam::UVec3 {
     )
 }
 
-// fn delinearize(level_size: impl Into<mint::Vector3<u32>>, idx: usize) -> glam::UVec3 {
-//     let level_size = level_size.into();
-//     let shape = RuntimeShape::<u32, 3>::new([level_size.x, level_size.y, level_size.z]);
-//     shape.delinearize(idx as u32).into()
-// }
-
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "V: Serialize + DeserializeOwned, R: Serialize + DeserializeOwned")]
 pub struct VoxelLevel<
@@ -67,10 +61,18 @@ impl<
         R: VoxRegistry<V> + Clone + Default + Serialize + DeserializeOwned,
     > VoxelLevel<V, R>
 {
+    pub fn delinearize(&self, idx: usize) -> glam::UVec3 {
+        let shape =
+            RuntimeShape::<u32, 3>::new([self.level_size.x, self.level_size.y, self.level_size.z]);
+        shape.delinearize(idx as u32).into()
+    }
+
     pub fn new(level_size: impl Into<mint::Vector3<u32>>) -> Self {
         let level_size = level_size.into();
-        let mut loaded_chunks =
-            Vec::with_capacity((level_size.x * level_size.y * level_size.z) as usize);
+        let mut loaded_chunks = vec![
+            ChunkData::<V, R>::default();
+            (level_size.x * level_size.y * level_size.z) as usize
+        ];
         for x in 0..level_size.x {
             for y in 0..level_size.y {
                 for z in 0..level_size.z {
