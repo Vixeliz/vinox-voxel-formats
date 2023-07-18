@@ -14,7 +14,7 @@ use texture_packer::{
 };
 use vinox_voxel::prelude::{
     AssetRegistry, BlockData, BlockRegistry, ChunkData, ChunkPos, GeometryRegistry, RawChunk,
-    RelativeVoxelPos, UVRect, VoxRegistry, Voxel, CHUNK_SIZE,
+    RelativeVoxelPos, UVRect, VoxRegistry, Voxel, VoxelPos, CHUNK_SIZE,
 };
 
 use crate::raycast::raycast_world;
@@ -68,6 +68,13 @@ impl<
         let shape =
             RuntimeShape::<u32, 3>::new([self.level_size.x, self.level_size.y, self.level_size.z]);
         shape.delinearize(idx as u32).into()
+    }
+
+    pub fn linearize(&self, pos: impl Into<mint::Vector3<u32>>) -> u32 {
+        let pos: mint::Vector3<u32> = pos.into();
+        let shape =
+            RuntimeShape::<u32, 3>::new([self.level_size.x, self.level_size.y, self.level_size.z]);
+        shape.linearize([pos.x, pos.y, pos.z])
     }
 
     pub fn new(level_size: impl Into<mint::Vector3<u32>>) -> Self {
@@ -252,13 +259,20 @@ impl<
         origin: impl Into<mint::Vector3<f32>>,
         direction: impl Into<mint::Vector3<f32>>,
         radius: f32,
-    ) -> Option<(ChunkPos, RelativeVoxelPos, mint::Vector3<f32>, f32)> {
+    ) -> Option<(VoxelPos, mint::Vector3<f32>, f32)> {
         raycast_world(origin, direction, radius, |vox_pos| {
             let vox_pos: UVec3 = IVec3::from(mint::Vector3::<i32>::from(vox_pos)).as_uvec3();
             self.get_voxel(vox_pos)
-                .is_some_and(|x| x.is_empty(Some(&self.block_registry)))
-        });
-        None
+                .is_some_and(|x| !x.is_empty(Some(&self.block_registry)))
+        })
+    }
+
+    pub fn get_chunk(&self, chunk_pos: impl Into<mint::Vector3<u32>>) -> Option<&ChunkData<V, R>> {
+        let chunk_pos: mint::Vector3<u32> = chunk_pos.into();
+        let chunk_pos = UVec3::from(chunk_pos);
+        self.loaded_chunks
+            .as_ref()
+            .and_then(|x| x.get(linearize(self.level_size, chunk_pos)))
     }
 }
 
