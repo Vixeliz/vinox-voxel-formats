@@ -8,7 +8,7 @@ pub fn raycast_world(
     direction: impl Into<mint::Vector3<f32>>,
     radius: f32,
     block_callback: impl Fn(VoxelPos) -> bool,
-) -> Option<(ChunkPos, RelativeVoxelPos, Vec3, f32)> {
+) -> Option<(ChunkPos, RelativeVoxelPos, mint::Vector3<f32>, f32)> {
     let direction: Vector3<f32> = direction.into();
     let origin: Vector3<f32> = origin.into();
     let direction: Vec3 = direction.into();
@@ -47,7 +47,7 @@ pub fn raycast_world(
         if block_callback(voxel_pos) {
             let (relative_pos, chunk_pos) = voxel_pos.to_offsets();
             let toi = lastmax * direction.length();
-            return Some((chunk_pos, relative_pos, face, toi));
+            return Some((chunk_pos, relative_pos, face.into(), toi));
         }
 
         if tmax.x < tmax.y {
