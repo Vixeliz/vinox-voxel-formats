@@ -262,8 +262,11 @@ impl<
     ) -> Option<(VoxelPos, mint::Vector3<f32>, f32)> {
         raycast_world(origin, direction, radius, |vox_pos| {
             let vox_pos: UVec3 = IVec3::from(mint::Vector3::<i32>::from(vox_pos)).as_uvec3();
-            self.get_voxel(vox_pos)
-                .is_some_and(|x| !x.is_empty(Some(&self.block_registry)))
+            if let Some(voxel) = self.get_voxel(vox_pos) {
+                !voxel.is_empty(Some(&self.block_registry))
+            } else {
+                false
+            }
         })
     }
 
