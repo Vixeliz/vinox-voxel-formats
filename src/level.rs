@@ -273,9 +273,35 @@ impl<
     pub fn get_chunk(&self, chunk_pos: impl Into<mint::Vector3<u32>>) -> Option<&ChunkData<V, R>> {
         let chunk_pos: mint::Vector3<u32> = chunk_pos.into();
         let chunk_pos = UVec3::from(chunk_pos);
+        let vox_neighbors =
+            ChunkPos::new(chunk_pos.x as i32, chunk_pos.y as i32, chunk_pos.z as i32).neighbors();
         self.loaded_chunks
             .as_ref()
             .and_then(|x| x.get(linearize(self.level_size, chunk_pos)))
+    }
+
+    pub fn get_chunk_neighbors(
+        &self,
+        chunk_pos: impl Into<mint::Vector3<u32>>,
+    ) -> Option<Vec<&ChunkData<V, R>>> {
+        let chunk_pos: mint::Vector3<u32> = chunk_pos.into();
+        let chunk_pos = UVec3::from(chunk_pos);
+        let vox_neighbors =
+            ChunkPos::new(chunk_pos.x as i32, chunk_pos.y as i32, chunk_pos.z as i32).neighbors();
+        self.loaded_chunks.as_ref().and_then(|x| {
+            let mut neighbors = Vec::default();
+            for neighbor in vox_neighbors {
+                if let Some(chunk) = x.get(linearize(
+                    self.level_size,
+                    UVec3::new(neighbor.x as u32, neighbor.y as u32, neighbor.z as u32),
+                )) {
+                    neighbors.push(chunk);
+                } else {
+                    return None;
+                }
+            }
+            Some(neighbors)
+        })
     }
 }
 
