@@ -14,7 +14,7 @@ use texture_packer::{
 };
 use vinox_voxel::prelude::{
     AssetRegistry, BlockData, BlockRegistry, ChunkData, ChunkPos, GeometryRegistry, RawChunk,
-    RelativeVoxelPos, UVRect, VoxRegistry, Voxel, VoxelPos, CHUNK_SIZE,
+    UVRect, VoxRegistry, Voxel, VoxelPos, CHUNK_SIZE,
 };
 
 use crate::raycast::raycast_world;
@@ -278,24 +278,37 @@ impl<
             .and_then(|x| x.get(linearize(self.level_size, chunk_pos)))
     }
 
-    pub fn get_chunk_neighbors(
+    pub fn get_chunk_neighbors_pos(
         &self,
         chunk_pos: impl Into<mint::Vector3<u32>>,
-    ) -> Option<[&ChunkData<V, R>; 26]> {
+    ) -> Option<[Option<UVec3>; 26]> {
         let chunk_pos: mint::Vector3<u32> = chunk_pos.into();
         let chunk_pos = UVec3::from(chunk_pos);
         let vox_neighbors =
             ChunkPos::new(chunk_pos.x as i32, chunk_pos.y as i32, chunk_pos.z as i32).neighbors();
+
         self.loaded_chunks.as_ref().and_then(|x| {
             let mut neighbors = Vec::default();
             for neighbor in vox_neighbors {
-                if let Some(chunk) = x.get(linearize(
-                    self.level_size,
-                    UVec3::new(neighbor.x as u32, neighbor.y as u32, neighbor.z as u32),
-                )) {
-                    neighbors.push(chunk);
+                if neighbor.x >= 0 && neighbor.y >= 0 && neighbor.z >= 0
+                // && neighbor.lt(&UVec3::from(self.level_size).as_ivec3().into())
+                {
+                    if x.get(linearize(
+                        self.level_size,
+                        UVec3::new(neighbor.x as u32, neighbor.y as u32, neighbor.z as u32),
+                    ))
+                    .is_some()
+                    {
+                        neighbors.push(Some(UVec3::new(
+                            neighbor.x as u32,
+                            neighbor.y as u32,
+                            neighbor.z as u32,
+                        )));
+                    } else {
+                        neighbors.push(None)
+                    }
                 } else {
-                    return None;
+                    neighbors.push(None)
                 }
             }
             neighbors.try_into().ok()
@@ -313,13 +326,19 @@ impl<
         self.loaded_chunks.as_ref().and_then(|x| {
             let mut neighbors = Vec::default();
             for neighbor in vox_neighbors {
-                if let Some(chunk) = x.get(linearize(
-                    self.level_size,
-                    UVec3::new(neighbor.x as u32, neighbor.y as u32, neighbor.z as u32),
-                )) {
-                    neighbors.push(chunk.clone());
+                if neighbor.x >= 0 && neighbor.y >= 0 && neighbor.z >= 0
+                // && neighbor.lt(&UVec3::from(self.level_size).as_ivec3().into())
+                {
+                    if let Some(chunk) = x.get(linearize(
+                        self.level_size,
+                        UVec3::new(neighbor.x as u32, neighbor.y as u32, neighbor.z as u32),
+                    )) {
+                        neighbors.push(chunk.clone());
+                    } else {
+                        neighbors.push(ChunkData::<V, R>::default())
+                    }
                 } else {
-                    return None;
+                    neighbors.push(ChunkData::<V, R>::default())
                 }
             }
             neighbors.try_into().ok()

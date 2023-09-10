@@ -1,6 +1,6 @@
 use glam::Vec3;
 use mint::Vector3;
-use vinox_voxel::prelude::{ChunkPos, RelativeVoxelPos, VoxelPos};
+use vinox_voxel::prelude::VoxelPos;
 
 // Takes in absolute world positions returns a chunk pos and a voxel pos for whatever face it hits and a normal
 pub fn raycast_world(
